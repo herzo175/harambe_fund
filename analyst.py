@@ -26,7 +26,7 @@ class Analyst():
 				f.write(raw)
 
 		if not os.path.exists(IRIS_TEST):
-			raw = urllib.urlopen(IRIS_TEST_URL).read().decode('utf8')
+			raw = urllib.request.urlopen(IRIS_TEST_URL).read().decode('utf8')
 			with open(IRIS_TEST, "w") as f:
 				f.write(raw)
 
@@ -78,7 +78,7 @@ class Analyst():
 		)
 
 		# Evaluate accuracy.
-		accuracy_score = self.classifier.evaluate(input_fn=test_input_fn)["accuracy"]
+		accuracy_score = self.classifier.evaluate(input_fn=self.test_input_fn)["accuracy"]
 
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
 
@@ -92,8 +92,16 @@ class Analyst():
 			shuffle=False
 		)
 
+<<<<<<< HEAD
 		predictions = list(self.classifier.predict(input_fn=predict_input_fn))
 		predicted_classes = [p["classes"] for p in predictions]
 
 		print('accuracy:', self.classifier.evaluate(input_fn=predict_input_fn)["accuracy"])
 		return predicted_classes
+=======
+		predictions = self.classifier.predict(input_fn=predict_input_fn)
+		predicted_classes = [p["classes"] for p in list(predictions)]
+		
+		print('accuracy:', predictions['accuracy'])
+		return predicted_classes
+>>>>>>> 0c330c77692e3cbeb66153c54111851e773321ca
