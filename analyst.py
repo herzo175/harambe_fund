@@ -78,7 +78,7 @@ class Analyst():
 		)
 
 		# Evaluate accuracy.
-		accuracy_score = self.classifier.evaluate(input_fn=self.test_input_fn)["accuracy"]
+		accuracy_score = self.classifier.evaluate(input_fn=test_input_fn)["accuracy"]
 
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
 
@@ -95,5 +95,4 @@ class Analyst():
 		predictions = list(self.classifier.predict(input_fn=predict_input_fn))
 		predicted_classes = [p["classes"] for p in predictions]
 
-		print('accuracy:', self.classifier.evaluate(input_fn=predict_input_fn)["accuracy"])
 		return predicted_classes
