@@ -21,12 +21,12 @@ class Analyst():
 
 	def loadDataset(self):
 		if not os.path.exists(IRIS_TEST):
-			raw = urllib.urlopen(IRIS_TRAINING_URL).read()
+			raw = urllib.urlopen(IRIS_TRAINING_URL).read().decode('utf8')
 			with open(IRIS_TRAINING, "w") as f:
 				f.write(raw)
 
 		if not os.path.exists(IRIS_TEST):
-			raw = urllib.urlopen(IRIS_TEST_URL).read()
+			raw = urllib.urlopen(IRIS_TEST_URL).read().decode('utf8')
 			with open(IRIS_TEST, "w") as f:
 				f.write(raw)
 
@@ -70,7 +70,7 @@ class Analyst():
 		self.classifier.train(input_fn=train_input_fn, steps=2000)
 
 		# Define the test inputs
-		self.test_input_fn = tf.estimator.inputs.numpy_input_fn(
+		test_input_fn = tf.estimator.inputs.numpy_input_fn(
 			x={"x": np.array(self.test_set.data)},
 			y=np.array(self.test_set.target),
 			num_epochs=1,
@@ -95,4 +95,5 @@ class Analyst():
 		predictions = list(self.classifier.predict(input_fn=predict_input_fn))
 		predicted_classes = [p["classes"] for p in predictions]
 
+		print('accuracy:', self.classifier.evaluate(input_fn=predict_input_fn)["accuracy"])
 		return predicted_classes
