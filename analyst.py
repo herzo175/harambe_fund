@@ -92,16 +92,8 @@ class Analyst():
 			shuffle=False
 		)
 
-<<<<<<< HEAD
 		predictions = list(self.classifier.predict(input_fn=predict_input_fn))
 		predicted_classes = [p["classes"] for p in predictions]
 
 		print('accuracy:', self.classifier.evaluate(input_fn=predict_input_fn)["accuracy"])
 		return predicted_classes
-=======
-		predictions = self.classifier.predict(input_fn=predict_input_fn)
-		predicted_classes = [p["classes"] for p in list(predictions)]
-		
-		print('accuracy:', predictions['accuracy'])
-		return predicted_classes
->>>>>>> 0c330c77692e3cbeb66153c54111851e773321ca
