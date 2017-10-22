@@ -14,20 +14,20 @@ TEST_DATASET = "test.csv"
 
 class Analyst():
 	def __init__(self):
-		# self.load_datasets()
-		# self.train()
+		self.load_datasets()
+		self.train()
 		return
 
 	def load_datasets(self):
 		self.training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
 			filename=MASTER_DATASET,
-			target_dtype=np.float32,
+			target_dtype=np.int,
 			features_dtype=np.float32
 		)
 
 		self.test_set = tf.contrib.learn.datasets.base.load_csv_with_header(
 			filename=TEST_DATASET,
-			target_dtype=np.float32,
+			target_dtype=np.int,
 			features_dtype=np.float32
 		)
 
@@ -36,7 +36,7 @@ class Analyst():
 		print('test set:')
 		print(self.test_set)
 
-	def add_to_dataset(self, symbol, target, type='MASTER'):
+	def get_stock_data(self, symbol):
 		data = []
 		stock = Share(symbol)
 
@@ -55,15 +55,27 @@ class Analyst():
 		data.append(stock.get_EPS_estimate_next_year() or '0')
 		data.append(stock.get_one_yr_target_price() or '0')
 
-		data.append(str(target))
+		return data
 
-		new_string =  ','.join(data) + '\n'
 
-		if len(new_string.split(',')) == 15:
+	def add_to_dataset(self, symbol, target, type='MASTER'):
+		data = get_stock_data(symbol)
+
+		# define bad, neutral, good
+		if target < 0:
+			data.append(str(0))
+		elif target >= 0 and target < 6:
+			data.append(str(1))
+		else:
+			data.append(str(2))
+		
+
+		if len(data) == 15:
+			new_string = ','.join(data) + '\n'
 			f = open(TEST_DATASET if type == 'TEST' else MASTER_DATASET, "a")
 			f.write(new_string)
 
-		return new_string
+		return data
 
 	def train(self):
 		# Specify that all features have real-value data
@@ -100,9 +112,9 @@ class Analyst():
 
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
 
-	def test_against_current_data(self, testArr):
+	def test_against_current_data(self, symbol):
 		new_samples = np.array(
-			[testArr], dtype=np.float32
+			[self.get_stock_data(symbol)], dtype=np.float32
 		)
 		predict_input_fn = tf.estimator.inputs.numpy_input_fn(
 			x={"x": new_samples},
