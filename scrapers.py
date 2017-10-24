@@ -1,7 +1,13 @@
+from sys import version_info
+
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-#from urllib.request import urlopen
-from urllib import urlopen
+
+if version_info > (3,0):
+	from urllib.request import urlopen
+else:
+	from urllib import urlopen
+
 from yahoo_finance import Share
 
 
