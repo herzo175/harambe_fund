@@ -14,7 +14,7 @@ MASTER_DATASET = "master.csv"
 TEST_DATASET = "test.csv"
 DATA_WIDTH = 12
 # Number of classifications; add 1 since lowest is 1
-N_CLASSES = 5
+N_CLASSES = 4
 
 class Analyst():
 	def __init__(self):

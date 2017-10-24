@@ -28,17 +28,16 @@ def get_earnings_calendar(date):
 	soup = BeautifulSoup(urlopen(url), 'html.parser')
 
 	rows = soup.find_all('tr')[1:]
-	cols = list(
+	rows = list(
 		map(lambda r: [e.text.strip() for e in r.find_all('td')], rows)
 	)
-	zeroed_cols = list(
-		map(lambda c: list(
-			map(lambda e: '0' if e == '-' else e, c)
-			), cols
+	filtered_rows = list(
+		filter(
+			lambda r: '-' not in r, rows
 		)
 	)
 
-	return zeroed_cols
+	return filtered_rows
 
 
 def get_stock_data(symbol):
@@ -65,15 +64,13 @@ def get_stock_data(symbol):
 def create_earnings_dataset_row(stock_data, target):
 	# create row with stock data array and target
 	# decide integer value for stock target
-	if float(target) > 12:
-		new_target = '5'
-	elif float(target) > 3:
+	if float(target) > 8:
 		new_target = '4'
 	elif float(target) > 0:
 		new_target = '3'
-	elif float(target) > -2:
+	elif float(target) < 0 and float(target) > -8:
 		new_target = '2'
-	else:
+	elif float(target) <= -8:
 		new_target = '1'
 		
 	return stock_data + [new_target]
@@ -118,3 +115,33 @@ def add_to_csv(row, filename):
 		f.close()
 
 	return new_string
+
+def calculate_frequencies(arr, extractor):
+	# extractor is a function that takes an array
+	# and returns an element from the array
+	targets = list(map(extractor, arr))
+	frequencies = {}
+
+	for e in targets:
+		if e in frequencies:
+			frequencies[e] += 1
+		else:
+			frequencies[e] = 1
+
+	return frequencies
+
+def CSV_to_2D_list(filename):
+	f = open(filename, 'r')
+	# split up file string into lines
+	lines = f.read().split('\n')[1:-1]
+	f.close()
+	# convert rows from strings to arrays
+	rows = list(map(lambda l: l.split(','), lines))
+
+	return rows
+
+
+def calculate_target_frequencies(filename):
+	rows = CSV_to_2D_list(filename)
+
+	return calculate_frequencies(lasts, lambda r: r[-1])
