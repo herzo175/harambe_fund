@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from urllib.request import urlopen
+#from urllib.request import urlopen
+from urllib import urlopen
 from yahoo_finance import Share
 
 
