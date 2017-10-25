@@ -45,6 +45,9 @@ class Analyst():
 				'targets': []
 			}
 
+			self.load_datasets()
+			self.train()
+
 			return
 
 
@@ -67,20 +70,17 @@ class Analyst():
 			map(lambda r: list(map(lambda e: float(e), r[:-1])), training_data)
 		)
 		self.training_set['targets'] = list(
-			map(lambda r: list(map(lambda e: int(e), r[-1])), training_data)
+			map(lambda r: int(r[-1]), training_data)
 		)
 
 		self.test_set['set_data'] = list(
 			map(lambda r: list(map(lambda e: float(e), r[:-1])), test_data)
 		)
 		self.test_set['targets'] = list(
-			map(lambda r: list(map(lambda e: int(e), r[-1])), test_data)
+			map(lambda r: int(r[-1]), test_data)
 		)
 
-		print('training set:')
-		print(self.training_set)
-		print('test set:')
-		print(self.test_set)
+		return self.training_set, self.test_set
 
 	def save_datasets(
 		self,
@@ -142,29 +142,33 @@ class Analyst():
 		# Train model.
 		self.classifier.train(input_fn=train_input_fn, steps=2000)
 
+		return self.classifier
+
 	def accuracy(self, test_set=None):
 		# Define the test inputs
 		test_set = (
 			self.test_set if test_set is None else test_set
 		)
 
-		test_input_fn = tf.estimator.inputs.numpy_input_fn(
-			x={'x': np.array(test_set['set_data'])},
-			y=np.array(test_set['targets']),
-			num_epochs=None,
-			shuffle=True
+		def compare_results(row):
+			result = self.test_against_current_data(row[:-1])
+
+			return float(result[0][0]) >= float(row[-1])
+
+		test_data = list(zip(test_set['set_data'], test_set['targets']))
+		comparisons = list(
+			map(
+				lambda r: compare_results(r), test_data              
+			)
 		)
 
-		# Evaluate accuracy.
-		accuracy_score = self.classifier.evaluate(input_fn=test_input_fn)
+		successful_tests = list(filter(lambda e: e, comparisons))
+		accuracy_score = len(successful_tests) / len(comparisons)
 
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
+		return accuracy_score
 
-	def test_against_current_data(self, symbol):
-		stock_data = scrapers.data_to_list(
-			scrapers.get_stock_data(symbol),
-			self.DATA_KEYS
-		)
+	def test_against_current_data(self, stock_data):
 		new_samples = np.array(
 			[stock_data], dtype=np.float32
 		)
@@ -179,11 +183,21 @@ class Analyst():
 
 		return predicted_classes
 
+	def test_symbol(self, symbol):
+		stock_data = scrapers.data_to_list(
+			scrapers.get_stock_data(symbol),
+			self.DATA_KEYS
+		)
+		
+		result = test_against_current_data(stock_data)
 
-	def test(self, symbol):
+		return result[0][0]
+
+
+	def test_symbol_raw(self, symbol):
 		self.load_datasets()
 		self.train()
-		return self.test_against_current_data(symbol)
+		return self.test_symbol(symbol)
 
 
 	def create_earnings_dataset_row(self, stock_data, target):
@@ -244,7 +258,7 @@ class Analyst():
 			if dataset == 'TEST':
 				self.test_set['set_data'].extend(set_data)
 				self.test_set['targets'].extend(targets)
-			else:
+			elif dataset == 'MASTER':
 				self.training_set['set_data'].extend(set_data)
 				self.training_set['targets'].extend(targets)
 

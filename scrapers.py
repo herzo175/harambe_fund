@@ -148,7 +148,7 @@ def calculate_frequencies(arr, extractor):
 def calculate_target_frequencies(filename):
 	rows = CSV_to_2D_list(filename)
 
-	return calculate_frequencies(lasts, lambda r: r[-1])
+	return calculate_frequencies(rows, lambda r: r[-1])
 
 
 """
@@ -168,7 +168,7 @@ def add_to_csv(row, filename):
 def CSV_to_2D_list(filename):
 	f = open(filename, 'r')
 	# split up file string into lines
-	lines = f.read().split('\n')[1:-1]
+	lines = f.read().split('\n')[:-1]
 	f.close()
 	# convert rows from strings to arrays
 	rows = list(map(lambda l: l.split(','), lines))
