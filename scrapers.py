@@ -56,9 +56,12 @@ def get_stock_data(symbol):
 
 	d = {r[0]: r[1] for r in rows}
 
+	for k in d:
+		d[k] = d[k].replace(',', '')
+
 	d['Ask'] = d['Ask'].split(' x ')[0]
 	d['Bid'] = d['Bid'].split(' x ')[0]
-	
+
 	# Create daily buy/sell distances in price
 	d['Buy Distance Below Daily High'] = (
 		str(
@@ -103,6 +106,18 @@ def get_stock_data(symbol):
 		)
 	)
 
+	# create buy/sell distances from yearly target
+	d['Buy Distance From Yearly Target'] = (
+		str(
+			float(d['1y Target Est']) - float(d['Ask'])
+		)
+	)
+	d['Sell Distance From Yearly Target'] = (
+		str(
+			float(d['1y Target Est']) - float(d['Bid'])
+		)
+	)
+
 	return d
 
 
@@ -141,8 +156,9 @@ def calculate_target_frequencies(filename):
 """
 
 def add_to_csv(row, filename):
+	str_row = list(map(lambda e: str(e), row))
 	new_string = ','.join(row) + '\n'
-	
+
 	with open(filename, 'a') as f:
 		f.write(new_string)
 		f.close()

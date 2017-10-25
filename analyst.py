@@ -13,7 +13,13 @@ MASTER_DATASET = "master.csv"
 TEST_DATASET = "test.csv"
 # Number of classifications; add 1 since lowest is 1
 N_CLASSES = 4
-DATA_KEYS = []
+DATA_KEYS = [
+	'1y Target Est',
+	'Beta',
+	'EPS (TTM)',
+	'PE Ratio (TTM)',
+	'Buy Distance From Yearly Target'
+]
 DATA_WIDTH = len(DATA_KEYS)
 
 class Analyst():
@@ -29,23 +35,46 @@ class Analyst():
 			self.DATA_KEYS = data_keys
 			self.DATA_WIDTH = len(data_keys)
 
-			self.load_datasets()
-			#self.train()
-			
+			self.training_set = {
+				'set_data': [],
+				'targets': []
+			}
+
+			self.test_set = {
+				'set_data': [],
+				'targets': []
+			}
+
 			return
 
 
-	def load_datasets(self):
-		self.training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-			filename=self.MASTER_DATASET,
-			target_dtype=np.int,
-			features_dtype=np.float32
+	def load_datasets(
+		self,
+		master_filename=None,
+		test_filename=None):
+
+		master_filename = (
+			self.MASTER_DATASET if master_filename is None else master_filename
+		)
+		test_filename = (
+			self.TEST_DATASET if test_filename is None else test_filename
 		)
 
-		self.test_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-			filename=self.TEST_DATASET,
-			target_dtype=np.int,
-			features_dtype=np.float32
+		training_data = scrapers.CSV_to_2D_list(master_filename)
+		test_data = scrapers.CSV_to_2D_list(test_filename)
+
+		self.training_set['set_data'] = list(
+			map(lambda r: list(map(lambda e: float(e), r[:-1])), training_data)
+		)
+		self.training_set['targets'] = list(
+			map(lambda r: list(map(lambda e: int(e), r[-1])), training_data)
+		)
+
+		self.test_set['set_data'] = list(
+			map(lambda r: list(map(lambda e: float(e), r[:-1])), test_data)
+		)
+		self.test_set['targets'] = list(
+			map(lambda r: list(map(lambda e: int(e), r[-1])), test_data)
 		)
 
 		print('training set:')
@@ -54,20 +83,29 @@ class Analyst():
 		print(self.test_set)
 
 
-	def train(self):
+	def train(self, training_set=None, test_set=None):
+		training_set = (
+			self.training_set if training_set is None else training_set
+		)
+		test_set = (
+			self.test_set if test_set is None else test_set
+		)
 		# Specify that all features have real-value data
-		feature_columns = [tf.feature_column.numeric_column("x", shape=[self.DATA_WIDTH])]
+		feature_columns = [
+			tf.feature_column.numeric_column("x", shape=[self.DATA_WIDTH])
+		]
 
 		# Build 3 layer DNN with 10, 20, 10 units respectively.
-		self.classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
-			hidden_units=[10, 20, 10],
+		self.classifier = tf.estimator.DNNClassifier(
+			feature_columns=feature_columns,
+			hidden_units=[20, 40, 20],
 			n_classes=self.N_CLASSES+1
 		)
 
 		# Define the training inputs
 		train_input_fn = tf.estimator.inputs.numpy_input_fn(
-			x={"x": np.array(self.training_set.data)},
-			y=np.array(self.training_set.target),
+			x={'x': np.array(training_set['set_data'])},
+			y=np.array(training_set['targets']),
 			num_epochs=None,
 			shuffle=True
 		)
@@ -77,10 +115,10 @@ class Analyst():
 
 		# Define the test inputs
 		test_input_fn = tf.estimator.inputs.numpy_input_fn(
-			x={"x": np.array(self.test_set.data)},
-			y=np.array(self.test_set.target),
-			num_epochs=1,
-			shuffle=False
+			x={'x': np.array(test_set['set_data'])},
+			y=np.array(test_set['targets']),
+			num_epochs=None,
+			shuffle=True
 		)
 
 		# Evaluate accuracy.
@@ -103,7 +141,7 @@ class Analyst():
 		)
 
 		predictions = list(self.classifier.predict(input_fn=predict_input_fn))
-		predicted_classes = [p["classes"] for p in predictions]
+		predicted_classes = [p['classes'] for p in predictions]
 
 		return predicted_classes
 
@@ -125,8 +163,8 @@ class Analyst():
 			new_target = '2'
 		elif float(target) <= -8:
 			new_target = '1'
-			
-		return stock_data + [new_target]
+
+		return list(map(lambda e: float(e), stock_data)) + [int(new_target)]
 
 
 	def create_earnings_dataset_date(self, datetime):
@@ -145,19 +183,35 @@ class Analyst():
 						stock_data, row[-1]
 					)
 					data.append(dataset_row)
-				except:
-					pass
-		except:
-			pass
+				except Exception as e:
+					print(e)
+		except Exception as e:
+			print(e)
 
 		return data
 
 
-	def create_earnings_dataset_range(self, datetime, days_ahead):
+	def create_earnings_dataset_range(
+		self,
+		datetime,
+		days_ahead=0,
+		dataset=None):
+		#dataset should be either 'MASTER', 'TEST' or unspecified
 		data = []
 
 		for i in range(0, days_ahead):
 			date = datetime + timedelta(i)
 			data.extend(self.create_earnings_dataset_date(date))
-			
+
+		if dataset != None:
+			set_data = list(map(lambda r: r[:-1], data))
+			targets = list(map(lambda r: r[-1], data))
+
+			if dataset == 'TEST':
+				self.test_set['set_data'].extend(set_data)
+				self.test_set['targets'].extend(targets)
+			else:
+				self.training_set['set_data'].extend(set_data)
+				self.training_set['targets'].extend(targets)
+
 		return data
