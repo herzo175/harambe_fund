@@ -2,36 +2,48 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import urllib
-
 import numpy as np
 import tensorflow as tf
-from scrapers import get_stock_data
-from yahoo_finance import Share
+
+from datetime import datetime, timedelta
+
+import scrapers
 
 MASTER_DATASET = "master.csv"
 TEST_DATASET = "test.csv"
-DATA_WIDTH = 12
 # Number of classifications; add 1 since lowest is 1
 N_CLASSES = 4
+DATA_KEYS = []
+DATA_WIDTH = len(DATA_KEYS)
 
 class Analyst():
-	def __init__(self):
-		self.load_datasets()
-		self.train()
-		return
+	def __init__(
+		self,
+		master_filename=MASTER_DATASET,
+		test_filename=TEST_DATASET,
+		num_classifications=N_CLASSES,
+		data_keys=DATA_KEYS):
+			self.MASTER_DATASET = master_filename
+			self.TEST_DATASET = test_filename
+			self.N_CLASSES = num_classifications
+			self.DATA_KEYS = data_keys
+			self.DATA_WIDTH = len(data_keys)
+
+			self.load_datasets()
+			#self.train()
+			
+			return
 
 
 	def load_datasets(self):
 		self.training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-			filename=MASTER_DATASET,
+			filename=self.MASTER_DATASET,
 			target_dtype=np.int,
 			features_dtype=np.float32
 		)
 
 		self.test_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-			filename=TEST_DATASET,
+			filename=self.TEST_DATASET,
 			target_dtype=np.int,
 			features_dtype=np.float32
 		)
@@ -44,12 +56,12 @@ class Analyst():
 
 	def train(self):
 		# Specify that all features have real-value data
-		feature_columns = [tf.feature_column.numeric_column("x", shape=[DATA_WIDTH])]
+		feature_columns = [tf.feature_column.numeric_column("x", shape=[self.DATA_WIDTH])]
 
 		# Build 3 layer DNN with 10, 20, 10 units respectively.
 		self.classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
 			hidden_units=[10, 20, 10],
-			n_classes=N_CLASSES+1
+			n_classes=self.N_CLASSES+1
 		)
 
 		# Define the training inputs
@@ -77,6 +89,10 @@ class Analyst():
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
 
 	def test_against_current_data(self, symbol):
+		stock_data = scrapers.data_to_list(
+			scrapers.get_stock_data(symbol),
+			self.DATA_KEYS
+		)
 		new_samples = np.array(
 			[get_stock_data(symbol)], dtype=np.float32
 		)
@@ -91,7 +107,57 @@ class Analyst():
 
 		return predicted_classes
 
+
 	def test(self, symbol):
 		self.load_datasets()
 		self.train()
 		return self.test_against_current_data(symbol)
+
+
+	def create_earnings_dataset_row(self, stock_data, target):
+		# create row with stock data array and target
+		# decide integer value for stock target
+		if float(target) > 8:
+			new_target = '4'
+		elif float(target) > 0:
+			new_target = '3'
+		elif float(target) < 0 and float(target) > -8:
+			new_target = '2'
+		elif float(target) <= -8:
+			new_target = '1'
+			
+		return stock_data + [new_target]
+
+
+	def create_earnings_dataset_date(self, datetime):
+		data = []
+
+		try:
+			earnings_rows = scrapers.get_earnings_calendar(datetime)
+
+			for row in earnings_rows:
+				try:
+					stock_data = scrapers.data_to_list(
+						scrapers.get_stock_data(row[0]),
+						self.DATA_KEYS
+					)
+					dataset_row = self.create_earnings_dataset_row(
+						stock_data, row[-1]
+					)
+					data.append(dataset_row)
+				except:
+					pass
+		except:
+			pass
+
+		return data
+
+
+	def create_earnings_dataset_range(self, datetime, days_ahead):
+		data = []
+
+		for i in range(0, days_ahead):
+			date = datetime + timedelta(i)
+			data.extend(self.create_earnings_dataset_date(date))
+			
+		return data

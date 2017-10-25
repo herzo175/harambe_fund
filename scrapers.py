@@ -1,7 +1,5 @@
 from sys import version_info
-
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
 
 if version_info > (3,0):
 	from urllib.request import urlopen
@@ -10,6 +8,10 @@ else:
 
 from yahoo_finance import Share
 
+
+"""
+	Functions to retreive stock information:
+"""
 
 def get_earnings_calendar(date):
 	# return 2D array of company earnings information by date
@@ -41,80 +43,77 @@ def get_earnings_calendar(date):
 
 
 def get_stock_data(symbol):
-	# return array of stock data for a given stock
-	data = []
-	stock = Share(symbol)
+	# return dictionary of all data for a stock
+	url = 'https://finance.yahoo.com/quote/' + symbol
+	soup = BeautifulSoup(urlopen(url), 'html.parser')
 
-	data.append(stock.get_avg_daily_volume() or '0')
-	data.append(stock.get_market_cap()[:-1] or '0')
-	data.append(stock.get_earnings_share() or '0')
-	data.append(stock.get_year_high() or '0')
-	data.append(stock.get_year_low() or '0')
-	data.append(stock.get_change_from_50_day_moving_average() or '0')
-	data.append(stock.get_dividend_share() or '0')
-	data.append(stock.get_price_earnings_ratio() or '0')
-	data.append(stock.get_price_earnings_growth_ratio() or '0')
-	data.append(stock.get_EPS_estimate_next_quarter() or '0')
-	data.append(stock.get_EPS_estimate_next_year() or '0')
-	data.append(stock.get_one_yr_target_price() or '0')
+	rows = list(
+		map(
+			lambda r: [e.text.strip() for e in r.find_all('td')],
+			soup.find_all('tr')
+		)
+	)
 
-	return data
+	d = {r[0]: r[1] for r in rows}
 
-
-def create_earnings_dataset_row(stock_data, target):
-	# create row with stock data array and target
-	# decide integer value for stock target
-	if float(target) > 8:
-		new_target = '4'
-	elif float(target) > 0:
-		new_target = '3'
-	elif float(target) < 0 and float(target) > -8:
-		new_target = '2'
-	elif float(target) <= -8:
-		new_target = '1'
-		
-	return stock_data + [new_target]
-
-
-def create_earnings_dataset_date(datetime):
-	data = []
-
-	try:
-		earnings_rows = get_earnings_calendar(datetime)
-
-		for row in earnings_rows:
-			try:
-				stock_data = get_stock_data(row[0])
-				dataset_row = create_earnings_dataset_row(
-					stock_data, row[-1]
-				)
-				data.append(dataset_row)
-			except:
-				pass
-	except:
-		pass
-
-	return data
-
-
-def create_earnings_dataset_range(datetime, days_ahead):
-	data = []
-
-	for i in range(0, days_ahead):
-		date = datetime + timedelta(i)
-		data.extend(create_earnings_dataset_date(date))
-		
-	return data
-
-
-def add_to_csv(row, filename):
-	new_string = ','.join(row) + '\n'
+	d['Ask'] = d['Ask'].split(' x ')[0]
+	d['Bid'] = d['Bid'].split(' x ')[0]
 	
-	with open(filename, 'a') as f:
-		f.write(new_string)
-		f.close()
+	# Create daily buy/sell distances in price
+	d['Buy Distance Below Daily High'] = (
+		str(
+			float(d["Day's Range"].split(' - ')[1]) - float(d['Ask'])
+		)
+	)
+	d['Buy Distance Above Daily Low'] = (
+		str(
+			float(d['Ask']) - float(d["Day's Range"].split(' - ')[0])
+		)
+	)
+	d['Sell Distance Below Daily High'] = (
+		str(
+			float(d["Day's Range"].split(' - ')[1]) - float(d['Bid'])
+		)
+	)
+	d['Sell Distance Above Daily Low'] = (
+		str(
+			float(d['Bid']) - float(d["Day's Range"].split(' - ')[0])
+		)
+	)
 
-	return new_string
+	# create yearly buy/sell distances in price
+	d['Buy Distance Below Yearly High'] = (
+		str(
+			float(d["52 Week Range"].split(' - ')[1]) - float(d['Ask'])
+		)
+	)
+	d['Buy Distance Above Yearly Low'] = (
+		str(
+			float(d['Ask']) - float(d["52 Week Range"].split(' - ')[0])
+		)
+	)
+	d['Sell Distance Below Yearly High'] = (
+		str(
+			float(d["52 Week Range"].split(' - ')[1]) - float(d['Bid'])
+		)
+	)
+	d['Sell Distance Above Yearly Low'] = (
+		str(
+			float(d['Bid']) - float(d["52 Week Range"].split(' - ')[0])
+		)
+	)
+
+	return d
+
+
+def data_to_list(dictionary, keys):
+	return [dictionary[k] for k in keys]
+
+
+"""
+	Data aggregation functions:
+"""
+
 
 def calculate_frequencies(arr, extractor):
 	# extractor is a function that takes an array
@@ -130,6 +129,26 @@ def calculate_frequencies(arr, extractor):
 
 	return frequencies
 
+
+def calculate_target_frequencies(filename):
+	rows = CSV_to_2D_list(filename)
+
+	return calculate_frequencies(lasts, lambda r: r[-1])
+
+
+"""
+	CSV handling functions
+"""
+
+def add_to_csv(row, filename):
+	new_string = ','.join(row) + '\n'
+	
+	with open(filename, 'a') as f:
+		f.write(new_string)
+		f.close()
+
+	return new_string
+
 def CSV_to_2D_list(filename):
 	f = open(filename, 'r')
 	# split up file string into lines
@@ -139,9 +158,3 @@ def CSV_to_2D_list(filename):
 	rows = list(map(lambda l: l.split(','), lines))
 
 	return rows
-
-
-def calculate_target_frequencies(filename):
-	rows = CSV_to_2D_list(filename)
-
-	return calculate_frequencies(lasts, lambda r: r[-1])
