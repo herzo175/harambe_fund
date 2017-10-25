@@ -83,12 +83,9 @@ class Analyst():
 		print(self.test_set)
 
 
-	def train(self, training_set=None, test_set=None):
+	def train(self, training_set=None):
 		training_set = (
 			self.training_set if training_set is None else training_set
-		)
-		test_set = (
-			self.test_set if test_set is None else test_set
 		)
 		# Specify that all features have real-value data
 		feature_columns = [
@@ -113,7 +110,12 @@ class Analyst():
 		# Train model.
 		self.classifier.train(input_fn=train_input_fn, steps=2000)
 
+	def accuracy(self, test_set=None):
 		# Define the test inputs
+		test_set = (
+			self.test_set if test_set is None else test_set
+		)
+		
 		test_input_fn = tf.estimator.inputs.numpy_input_fn(
 			x={'x': np.array(test_set['set_data'])},
 			y=np.array(test_set['targets']),
@@ -122,7 +124,7 @@ class Analyst():
 		)
 
 		# Evaluate accuracy.
-		accuracy_score = self.classifier.evaluate(input_fn=test_input_fn)["accuracy"]
+		accuracy_score = self.classifier.evaluate(input_fn=test_input_fn)
 
 		print("\nTest Accuracy: {0:f}\n".format(accuracy_score))
 
@@ -132,7 +134,7 @@ class Analyst():
 			self.DATA_KEYS
 		)
 		new_samples = np.array(
-			[get_stock_data(symbol)], dtype=np.float32
+			[stock_data], dtype=np.float32
 		)
 		predict_input_fn = tf.estimator.inputs.numpy_input_fn(
 			x={"x": new_samples},

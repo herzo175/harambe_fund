@@ -157,7 +157,7 @@ def calculate_target_frequencies(filename):
 
 def add_to_csv(row, filename):
 	str_row = list(map(lambda e: str(e), row))
-	new_string = ','.join(row) + '\n'
+	new_string = ','.join(str_row) + '\n'
 
 	with open(filename, 'a') as f:
 		f.write(new_string)
