@@ -82,6 +82,38 @@ class Analyst():
 		print('test set:')
 		print(self.test_set)
 
+	def save_datasets(
+		self,
+		training_set=None,
+		test_set=None,
+		master_filename=None,
+		test_filename=None):
+
+		training_set = (
+			self.training_set if training_set is None else training_set
+		)
+		test_set = (
+			self.test_set if test_set is None else test_set
+		)
+		master_filename = (
+			self.MASTER_DATASET if master_filename is None else master_filename
+		)
+		test_filename = (
+			self.TEST_DATASET if test_filename is None else test_filename
+		)
+
+		for i, r in enumerate(training_set['set_data']):
+			row = self.create_earnings_dataset_row(
+				r, training_set['targets'][i]
+			)
+			scrapers.add_to_csv(row, master_filename)
+
+		for i, r in enumerate(test_set['set_data']):
+			row = self.create_earnings_dataset_row(
+				r, test_set['targets'][i]
+			)
+			scrapers.add_to_csv(row, test_filename)
+
 
 	def train(self, training_set=None):
 		training_set = (
@@ -115,7 +147,7 @@ class Analyst():
 		test_set = (
 			self.test_set if test_set is None else test_set
 		)
-		
+
 		test_input_fn = tf.estimator.inputs.numpy_input_fn(
 			x={'x': np.array(test_set['set_data'])},
 			y=np.array(test_set['targets']),
