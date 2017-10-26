@@ -195,14 +195,16 @@ class Analyst():
 		return predicted_classes
 
 	def test_symbol(self, symbol):
-		stock_data = scrapers.data_to_list(
-			scrapers.get_stock_data(symbol),
+		stock_data = scrapers.get_stock_data(symbol)
+		list_stock_data = scrapers.data_to_list(
+			stock_data,
 			self.DATA_KEYS
 		)
 		
-		result = self.test_against_current_data(stock_data)
+		result = self.test_against_current_data(list_stock_data)
+		stock_data['Analyst Rating'] = result[0][0]
 
-		return result[0][0]
+		return stock_data
 
 
 	def test_symbol_raw(self, symbol):
