@@ -189,7 +189,7 @@ class Analyst():
 			self.DATA_KEYS
 		)
 		
-		result = test_against_current_data(stock_data)
+		result = self.test_against_current_data(stock_data)
 
 		return result[0][0]
 
