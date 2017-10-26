@@ -11,8 +11,21 @@ import scrapers
 
 MASTER_DATASET = "master.csv"
 TEST_DATASET = "test.csv"
+
 # Number of classifications; add 1 since lowest is 1
 N_CLASSES = 4
+def CLASSIFICATION_FUNCTION(target):
+	if float(target) > 8:
+		new_target = '4'
+	elif float(target) > 0:
+		new_target = '3'
+	elif float(target) < 0 and float(target) > -8:
+		new_target = '2'
+	elif float(target) <= -8:
+		new_target = '1'
+
+	return new_target
+
 DATA_KEYS = [
 	'1y Target Est',
 	'Beta',
@@ -28,10 +41,12 @@ class Analyst():
 		master_filename=MASTER_DATASET,
 		test_filename=TEST_DATASET,
 		num_classifications=N_CLASSES,
+		classification_function=CLASSIFICATION_FUNCTION,
 		data_keys=DATA_KEYS):
 			self.MASTER_DATASET = master_filename
 			self.TEST_DATASET = test_filename
 			self.N_CLASSES = num_classifications
+			self.CLASSIFICATION_FUNCTION = classification_function
 			self.DATA_KEYS = data_keys
 			self.DATA_WIDTH = len(data_keys)
 
@@ -103,15 +118,11 @@ class Analyst():
 		)
 
 		for i, r in enumerate(training_set['set_data']):
-			row = self.create_earnings_dataset_row(
-				r, training_set['targets'][i]
-			)
+			row = r + [training_set['targets'][i]]
 			scrapers.add_to_csv(row, master_filename)
 
 		for i, r in enumerate(test_set['set_data']):
-			row = self.create_earnings_dataset_row(
-				r, test_set['targets'][i]
-			)
+			row = r + [test_set['targets'][i]]
 			scrapers.add_to_csv(row, test_filename)
 
 
@@ -200,17 +211,17 @@ class Analyst():
 		return self.test_symbol(symbol)
 
 
-	def create_earnings_dataset_row(self, stock_data, target):
+	def create_earnings_dataset_row(
+		self,
+		stock_data,
+		target,
+		c_func=None):
 		# create row with stock data array and target
-		# decide integer value for stock target
-		if float(target) > 8:
-			new_target = '4'
-		elif float(target) > 0:
-			new_target = '3'
-		elif float(target) < 0 and float(target) > -8:
-			new_target = '2'
-		elif float(target) <= -8:
-			new_target = '1'
+		# optional parameter for custom classification function
+		c_function = (
+			self.CLASSIFICATION_FUNCTION if c_func is None else c_func
+		)
+		new_target = c_function(target)
 
 		return list(map(lambda e: float(e), stock_data)) + [int(new_target)]
 
