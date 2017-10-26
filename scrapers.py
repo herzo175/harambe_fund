@@ -155,11 +155,12 @@ def calculate_target_frequencies(filename):
 	CSV handling functions
 """
 
-def add_to_csv(row, filename):
+def add_to_csv(row, filename, mode='a'):
+	# mode is either 'a' for append or 'w' for overwrite
 	str_row = list(map(lambda e: str(e), row))
 	new_string = ','.join(str_row) + '\n'
 
-	with open(filename, 'a') as f:
+	with open(filename, mode) as f:
 		f.write(new_string)
 		f.close()
 
