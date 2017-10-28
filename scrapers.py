@@ -33,13 +33,8 @@ def get_earnings_calendar(date):
 	rows = list(
 		map(lambda r: [e.text.strip() for e in r.find_all('td')], rows)
 	)
-	filtered_rows = list(
-		filter(
-			lambda r: '-' not in r, rows
-		)
-	)
 
-	return filtered_rows
+	return rows
 
 
 def get_stock_data(symbol):
@@ -155,12 +150,12 @@ def calculate_target_frequencies(filename):
 	CSV handling functions
 """
 
-def add_to_csv(row, filename, mode='a'):
+def add_to_csv(row, filename):
 	# mode is either 'a' for append or 'w' for overwrite
 	str_row = list(map(lambda e: str(e), row))
 	new_string = ','.join(str_row) + '\n'
 
-	with open(filename, mode) as f:
+	with open(filename, 'a') as f:
 		f.write(new_string)
 		f.close()
 

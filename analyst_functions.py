@@ -41,6 +41,7 @@ DATA_WIDTH = len(DATA_KEYS)
 """
 
 def train(training_set, data_width, n_classes):
+	# data_width is length of input array when classifying raw data
 	# n_classes are natural numbers from 1, (1, 2, 3, 4 = 4 classes)
 	# Specify that all features have real-value data
 	feature_columns = [
@@ -111,7 +112,7 @@ def test_symbol(symbol, data_keys, classifier):
 	)
 		
 	result = test_data(list_stock_data, classifier)
-	stock_data['Analyst Rating'] = result[0][0]
+	stock_data['Analyst Rating'] = int(result[0][0])
 
 	return stock_data
 
@@ -131,10 +132,15 @@ def create_earnings_dataset_date(
 	datetime,
 	data_keys,
 	classification_function):
+	# get current stock data and results for single date
 	data = []
 
 	try:
-		earnings_rows = scrapers.get_earnings_calendar(datetime)
+		earnings_rows = list(
+			filter(
+				lambda r: '-' not in r, scrapers.get_earnings_calendar(datetime)
+			)
+		)
 
 		for row in earnings_rows:
 			try:
@@ -159,6 +165,7 @@ def create_earnings_dataset_range(
 	days_ahead,
 	data_keys,
 	classification_function):
+	# get current stock data and results for a range of dates
 	data = []
 
 	for i in range(0, days_ahead):
