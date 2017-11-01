@@ -6,6 +6,6 @@ c.InteractiveShellApp.exec_lines = [
     'from datetime import datetime, timedelta',
     'from analyst_class import Analyst',
     'import utils',
-    'import analyst_functions',
+    'import analyst_functions as af',
     'import trader'
 ]

@@ -2,7 +2,10 @@ from analyst_class import Analyst
 from datetime import datetime, timedelta
 from pytz import timezone
 from random import shuffle
+from schedule import every, run_pending
 from utils import (
+  BROKERAGE,
+  ita,
   data_to_list,
   get_stock_data,
   get_earnings_calendar,
@@ -31,6 +34,8 @@ DATA_KEYS = [
   'Buy Distance From Yearly Target'
 ]
 
+NUM_STOCKS = 3
+
 
 A = Analyst(
   master_filename="training_set.json",
@@ -41,30 +46,33 @@ A = Analyst(
   )
 
 
-def buy_stocks(current_time):
-  # check if time and if day is a trading day
-  # current_time.hour == 15 and current_time.weekday() < 5
-  if True:
-    # get associated earnings for that day
-    def earnings_filter(row):
-      return (
-        'After Market Close' in row
-        and row[3] != '-'
-        and float(row[3]) > 0.1
-      )
-
-    earnings_rows = get_earnings_calendar(current_time)
-    earnings_rows = list(
-      filter(
-        earnings_filter, earnings_rows
-      )
+def buy_stocks():
+  current_time = datetime.now(tz=timezone("US/Eastern"))
+  # get associated earnings for that day
+  def earnings_filter(row):
+    return (
+      'After Market Close' in row
+      and row[3] != '-'
+      and float(row[3]) > 0.1
     )
 
-    # get stock data for each of those earnings
-    stock_data = []
+  earnings_rows = get_earnings_calendar(current_time)
+  earnings_rows = list(
+    filter(
+      earnings_filter, earnings_rows
+    )
+  )
 
-    for r in earnings_rows:
-      try:
+  # get stock data for each of those earnings
+  stock_data = []
+
+  for r in earnings_rows:
+    try:
+      stock_dict = get_stock_data(r[0])
+
+      if (
+        float(stock_dict['Beta']) < 1
+      ):
         stock_data.append(
           {
             'date_evaluated': (
@@ -75,29 +83,50 @@ def buy_stocks(current_time):
               + str(current_time.day)
             ),
             'symbol': r[0],
-            'data': data_to_list(get_stock_data(r[0]), A.DATA_KEYS),
+            'data': data_to_list(stock_dict, A.DATA_KEYS),
             'prediction': A.test_symbol(r[0])
           }
         )
-      except Exception as e:
-        print(e)
+    except Exception as e:
+      print(e)
 
-    # save temporary stock data
-    add_to_temp_data(stock_data)
+  # save temporary stock data
+  add_to_temp_data(stock_data)
 
-    # filter earnings and pick 3 stocks
-    picked_stocks = list(
-      filter(lambda e: int(e['prediction']) == 3, stock_data)
-    )
-    shuffle(picked_stocks)
-    picked_stocks = picked_stocks[:3]
-    # execute trades
+  # filter earnings
+  picked_stocks = list(
+    filter(lambda e: int(e['prediction']) >= 3, stock_data)
+  )
+  # shuffle(picked_stocks)
+  # picked_stocks = picked_stocks[:NUM_STOCKS]
 
-    return picked_stocks
+  # execute trades
+  portfolio_status = BROKERAGE.get_portfolio_status()
+  # partition_size = portfolio_status.cash / NUM_STOCKS
+  partition_size = portfolio_status.cash / len(picked_stocks)
+
+  for s in picked_stocks:
+    price = ita.get_quote(s['symbol'])
+    num_shares = int(partition_size // price)
+    print('symbol:', s['symbol'])
+    print('price:', price)
+    print('num_shares:', num_shares)
+    BROKERAGE.trade(s['symbol'], ita.Action.buy, num_shares)
+
+  return picked_stocks
 
 
 def sell_stocks():
-  pass
+  # sell all stocks
+  for s in BROKERAGE.get_current_securities().bought:
+    # sell if profit or loss is within 1% of purchase price
+    if (
+      s.current_price > s.purchase_price
+      or (1 - (s.current_price / s.purchase_price)) < .01
+      ):
+      symbol = s.symbol
+      quantity = s.quantity
+      BROKERAGE.trade(symbol, ita.Action.sell, quantity)
 
 
 def add_to_temp_data(new_data):
@@ -106,14 +135,90 @@ def add_to_temp_data(new_data):
   temp_data = load_json_from_S3('temp_data.json')
   temp_data.extend(new_data)
   save_json_to_S3(temp_data, 'temp_data.json')
-  pass
 
 
 def add_to_dataset():
-  pass
+  temp_data = load_json_from_S3('temp_data.json')
+  # filter out data more than 7 days old
+  def younger_than_ten_days(datestring):
+    ds = datestring.split('-')
+    dt = datetime(int(ds[0]), int(ds[1]), int(ds[2]))
+
+    if dt + timedelta(10) > datetime.now():
+      return True
+    else:
+      return False
+
+  temp_data = list(
+    filter(
+      lambda e: younger_than_ten_days(e['date_evaluated']), temp_data
+    )
+  )
+
+  # group earnings by date
+  temp_data_2 = temp_data[:]
+  earnings_by_date = {}
+
+  for i, e in enumerate(temp_data_2):
+    if e['date_evaluated'] in earnings_by_date and 'result' not in e:
+      earnings_by_date[e['date_evaluated']] += [e]
+    elif 'result' not in e:
+      earnings_by_date[e['date_evaluated']] = [e]
+    else:
+      # get rid of data that has results
+      del(temp_data[i])
+
+  # lookup earnings for each date
+  for datestring in earnings_by_date:
+    ds = datestring.split('-')
+    dt = datetime(int(ds[0]), int(ds[1]), int(ds[2]))
+    earnings_by_stock = {e[0]: e[5] for e in get_earnings_calendar(dt)}
+    print(earnings_by_date[datestring])
+    print(earnings_by_stock)
+
+    for i, e in enumerate(earnings_by_date[datestring]):
+      if (
+        e['symbol'] in earnings_by_stock
+        and earnings_by_stock[e['symbol']] != '-'):
+        e['result'] = CLASSIFICATION_FUNCTION(earnings_by_stock[e['symbol']])
+        print(e['symbol'], e['result'])
+        
+        # put every 5th element into the test dataset
+        if i % 5 == 0:
+          dataset = 'TEST'
+        else:
+          dataset = 'MASTER'
+
+        A.add_to_dataset(e['data'], e['result'], dataset)
+        del(temp_data[temp_data.index(e)])
+
+  A.save_datasets()
+  A.train()
+  save_json_to_S3(temp_data, 'temp_data.json')
+
+  return temp_data, earnings_by_date
 
 
 if __name__ == '__main__':
-  current_time = datetime.now(tz=timezone("US/Eastern"))
+  every().monday.at("10:00", tz=timezone('US/Eastern')).do(sell_stocks)
+  every().monday.at("12:00", tz=timezone('US/Eastern')).do(add_to_dataset)
+  every().monday.at("14:30", tz=timezone('US/Eastern')).do(buy_stocks)
 
-  buy_stocks(current_time)
+  every().tuesday.at("10:00", tz=timezone('US/Eastern')).do(sell_stocks)
+  every().tuesday.at("12:00", tz=timezone('US/Eastern')).do(add_to_dataset)
+  every().tuesday.at("14:30", tz=timezone('US/Eastern')).do(buy_stocks)
+
+  every().wednesday.at("10:00", tz=timezone('US/Eastern')).do(sell_stocks)
+  every().wednesday.at("12:00", tz=timezone('US/Eastern')).do(add_to_dataset)
+  every().wednesday.at("14:30", tz=timezone('US/Eastern')).do(buy_stocks)
+
+  every().thursday.at("10:00", tz=timezone('US/Eastern')).do(sell_stocks)
+  every().thursday.at("12:00", tz=timezone('US/Eastern')).do(add_to_dataset)
+  every().thursday.at("14:30", tz=timezone('US/Eastern')).do(buy_stocks)
+
+  every().friday.at("10:00", tz=timezone('US/Eastern')).do(sell_stocks)
+  every().friday.at("12:00", tz=timezone('US/Eastern')).do(add_to_dataset)
+  every().friday.at("14:30", tz=timezone('US/Eastern')).do(buy_stocks)
+
+  while True:
+    run_pending()

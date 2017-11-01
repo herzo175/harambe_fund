@@ -1,5 +1,6 @@
 from analyst_functions import (
-  N_CLASSES, 
+  N_CLASSES,
+  TARGET_FROM_EARNINGS_ROW_FUNC,
   CLASSIFICATION_FUNCTION,
   DATA_KEYS,
   train,
@@ -27,14 +28,15 @@ class Analyst():
     master_filename=MASTER_DATASET,
     test_filename=TEST_DATASET,
     num_classifications=N_CLASSES,
+    target_from_earnings_row_func=TARGET_FROM_EARNINGS_ROW_FUNC,
     classification_function=CLASSIFICATION_FUNCTION,
     data_keys=DATA_KEYS):
       self.MASTER_DATASET = master_filename
       self.TEST_DATASET = test_filename
       self.N_CLASSES = num_classifications
+      self.TARGET_FROM_EARNINGS_ROW_FUNC = target_from_earnings_row_func
       self.CLASSIFICATION_FUNCTION = classification_function
       self.DATA_KEYS = data_keys
-      self.DATA_WIDTH = len(data_keys)
 
       self.training_set = {
         'set_data': [],
@@ -87,13 +89,15 @@ class Analyst():
 
   def train(self):
     self.classifier = train(
-      self.training_set, self.DATA_WIDTH, self.N_CLASSES
+      self.training_set, self.N_CLASSES
     )
 
     return self.classifier
 
   def accuracy(self):
-    return accuracy(self.test_set, self.classifier)
+    return accuracy(
+      self.test_set, self.TARGET_FROM_EARNINGS_ROW_FUNC, self.classifier
+    )
 
   def test_data(self, stock_data):
     return test_data(stock_data, self.classifier)
@@ -109,11 +113,15 @@ class Analyst():
   def create_earnings_dataset_range(
     self,
     datetime,
-    days_ahead=0,
+    days_ahead=1,
     dataset='MASTER'):
     # dataset should be either 'MASTER' or 'TEST'
     data = create_earnings_dataset_range(
-      datetime, days_ahead, self.DATA_KEYS, self.CLASSIFICATION_FUNCTION
+      datetime,
+      days_ahead,
+      self.DATA_KEYS,
+      self.TARGET_FROM_EARNINGS_ROW_FUNC,
+      self.CLASSIFICATION_FUNCTION
     )
 
     set_data = list(map(lambda r: r[:-1], data))
@@ -133,10 +141,10 @@ class Analyst():
     if (
       len(set_data_row) == len(self.training_set['set_data'][0])
       and len(set_data_row) == len(self.test_set['set_data'][0])
-      and target <= max(self.training_set['targets'])
-      and target <= max(self.test_set['targets'])
-      and target >= min(self.training_set['targets'])
-      and target >= min(self.test_set['targets'])):
+      and int(target) <= max(self.training_set['targets'])
+      and int(target) <= max(self.test_set['targets'])
+      and int(target) >= min(self.training_set['targets'])
+      and int(target) >= min(self.test_set['targets'])):
       try:
         set_data_row = list(map(lambda e: float(e), set_data_row))
         target = int(target)
@@ -148,7 +156,7 @@ class Analyst():
           self.training_set['set_data'].append(set_data_row)
           self.training_set['targets'].append(target)
 
-        a.train()
+        self.train()
       except Exception as e:
         print(e)
     else:

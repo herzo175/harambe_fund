@@ -3,6 +3,7 @@ from sys import version_info
 from bs4 import BeautifulSoup
 from boto3 import resource
 from json import dumps, loads
+from InvestopediaApi import ita
 
 if version_info > (3,0):
   from urllib.request import urlopen
@@ -19,6 +20,9 @@ S3 = resource(
 )
 BUCKET_NAME = "companyearningstradingstrategy"
 BUCKET = S3.Bucket(BUCKET_NAME)
+BROKERAGE = ita.Account(
+  environ['INVESTOPEDIA_USERNAME'], environ['INVESTOPEDIA_PASSWORD']
+)
 
 
 """
@@ -33,7 +37,7 @@ def get_earnings_calendar(date):
     '-' +
     str(date.month) +
     '-' +
-    str(date.day)
+    (str(date.day) if date.day >= 10 else '0' + str(date.day))
   )
   url = (
     'https://finance.yahoo.com/calendar/earnings?day=' +
@@ -47,6 +51,98 @@ def get_earnings_calendar(date):
   )
 
   return rows
+
+def get_historical_eps_estimate(symbol):
+  url = (
+    'https://www.reuters.com/finance/stocks/analyst/' + symbol
+  )
+  soup = BeautifulSoup(urlopen(url), 'html.parser')
+  cols = soup.find_all('td')
+  cols = [e.text.strip() for e in cols]
+
+  earnings_starts = []
+
+  for i, r in enumerate(cols):
+    if r == 'Earnings (per share)':
+      earnings_starts.append(i)
+
+  earnings_cols = cols[earnings_starts[1]+2:earnings_starts[1]+28]
+
+  def is_float(e):
+    try:
+      float(e)
+      return True
+    except:
+      return False
+
+  earnings_cols = list(filter(lambda r: is_float(r), earnings_cols))
+
+  # [estimate, actual, difference, surprise]
+  return [earnings_cols[i:i+4] for i in range(0, len(earnings_cols), 4)]
+
+
+def get_stock_change(symbol, datetime):
+  url = (
+    'https://finance.yahoo.com/quote/' + symbol + '/history'
+  )
+  soup = BeautifulSoup(urlopen(url), 'html.parser')
+
+  rows = soup.find_all('tr')[1:-1]
+  rows = list(
+    map(lambda r: [e.text.strip() for e in r.find_all('td')], rows)
+  )
+
+  def convert_datestring_to_datetime(ds):
+    # ex. Jan 25 2017
+    dl = ds.replace(',', '').split(' ')
+
+    # month, day, year => year, month, day
+    dl[0], dl[1], dl[2] = int(dl[2]), dl[0], int(dl[1])
+
+    if dl[1] == 'Jan':
+      dl[1] = 1
+    elif dl[1] == 'Feb':
+      dl[1] = 2
+    elif dl[1] == 'Mar':
+      dl[1] = 3
+    elif dl[1] == 'Apr':
+      dl[1] = 4
+    elif dl[1] == 'May':
+      dl[1] = 5
+    elif dl[1] == 'Jun':
+      dl[1] = 6
+    elif dl[1] == 'Jul':
+      dl[1] = 7
+    elif dl[1] == 'Aug':
+      dl[1] = 8
+    elif dl[1] == 'Sep':
+      dl[1] = 9
+    elif dl[1] == 'Oct':
+      dl[1] = 10
+    elif dl[1] == 'Nov':
+      dl[1] = 11
+    else:
+      dl[1] = 12
+
+    return dl
+
+  date_row = list(
+    filter(
+      lambda r: (
+        convert_datestring_to_datetime(r[0])
+        ==
+        [datetime.year, datetime.month, datetime.day]
+      ), rows
+    )
+  )[0]
+
+  def calculate_difference(open_string, close_string):
+    o = float(open_string.replace(',', ''))
+    c = float(close_string.replace(',', ''))
+
+    return (c - o) / o
+
+  return calculate_difference(date_row[1], date_row[4])
 
 
 def get_stock_data(symbol):
